@@ -1,0 +1,6 @@
+build/
+solver
+*.o
+.vscode/
+output/solution.json
+.DS_Store

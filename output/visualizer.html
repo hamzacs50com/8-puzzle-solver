@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>8-Puzzle Solver Visualizer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+        h1 { margin-bottom: 0.5rem; color: #38bdf8; }
+        .metrics-card { display: flex; gap: 1.5rem; background: #1e293b; padding: 1rem 2rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #334155; }
+        .metric { text-align: center; }
+        .metric-val { font-size: 1.25rem; font-weight: bold; color: #38bdf8; }
+        .grid { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 8px; background: #334155; padding: 8px; border-radius: 12px; }
+        .tile { display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; background: #2563eb; color: white; border-radius: 8px; transition: all 0.2s ease-in-out; }
+        .tile.empty { background: transparent; }
+        .controls { margin-top: 1.5rem; display: flex; gap: 1rem; }
+        button { background: #38bdf8; color: #0f172a; border: none; padding: 0.6rem 1.2rem; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #0284c7; color: white; }
+    </style>
+</head>
+<body>
+    <h1>8-Puzzle Solver Visualizer</h1>
+    <div class="metrics-card">
+        <div class="metric"><div>Algorithm</div><div class="metric-val" id="m-algo">-</div></div>
+        <div class="metric"><div>Path Cost</div><div class="metric-val" id="m-cost">-</div></div>
+        <div class="metric"><div>Nodes Expanded</div><div class="metric-val" id="m-nodes">-</div></div>
+        <div class="metric"><div>Time</div><div class="metric-val" id="m-time">-</div></div>
+    </div>
+
+    <div class="grid" id="puzzle-grid"></div>
+
+    <div class="controls">
+        <button onclick="prevStep()">Previous</button>
+        <button onclick="togglePlay()" id="play-btn">Play</button>
+        <button onclick="nextStep()">Next</button>
+    </div>
+
+    <script>
+        let solution = null;
+        let currentStep = 0;
+        let timer = null;
+
+        fetch('solution.json')
+            .then(res => res.json())
+            .then(data => { solution = data; init(); })
+            .catch(() => alert('Load output/solution.json via a local server or browser live server.'));
+
+        function init() {
+            document.getElementById('m-algo').innerText = solution.algorithm;
+            document.getElementById('m-cost').innerText = solution.path_cost;
+            document.getElementById('m-nodes').innerText = solution.nodes_expanded;
+            document.getElementById('m-time').innerText = solution.running_time_ms.toFixed(2) + ' ms';
+            renderState(solution.path[0]);
+        }
+
+        function renderState(state) {
+            const grid = document.getElementById('puzzle-grid');
+            grid.innerHTML = '';
+            for (let char of state) {
+                const div = document.createElement('div');
+                div.className = 'tile' + (char === '0' ? ' empty' : '');
+                div.innerText = char === '0' ? '' : char;
+                grid.appendChild(div);
+            }
+        }
+
+        function nextStep() {
+            if (solution && currentStep < solution.path.length - 1) {
+                currentStep++;
+                renderState(solution.path[currentStep]);
+            }
+        }
+
+        function prevStep() {
+            if (solution && currentStep > 0) {
+                currentStep--;
+                renderState(solution.path[currentStep]);
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('play-btn');
+            if (timer) {
+                clearInterval(timer); timer = null; btn.innerText = 'Play';
+            } else {
+                btn.innerText = 'Pause';
+                timer = setInterval(() => {
+                    if (currentStep < solution.path.length - 1) nextStep();
+                    else togglePlay();
+                }, 400);
+            }
+        }
+    </script>
+</body>
+</html>
