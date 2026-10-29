@@ -9,12 +9,15 @@
         .live-status { font-size: 0.9rem; color: #10b981; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
         .dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .algo-selector-container { margin-bottom: 1.5rem; display: none; /* Hidden by default if only 1 run exists */ }
+        select { background: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 0.6rem 1.2rem; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; outline: none; }
+        select:hover { border-color: #38bdf8; }
         .metrics-card { display: flex; gap: 1.5rem; background: #1e293b; padding: 1rem 2rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #334155; }
         .metric { text-align: center; }
         .metric-val { font-size: 1.25rem; font-weight: bold; color: #38bdf8; text-transform: capitalize; }
         .grid { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 8px; background: #334155; padding: 8px; border-radius: 12px; }
         .tile { display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; background: #2563eb; color: white; border-radius: 8px; transition: all 0.2s ease-in-out; }
-        .tile.empty { background: transparent; }
+        .tile.empty { background: transparent; /* Makes the '0' tile invisible to act as the blank space */ }
         .controls { margin-top: 1.5rem; display: flex; gap: 1rem; }
         button { background: #38bdf8; color: #0f172a; border: none; padding: 0.6rem 1.2rem; font-weight: bold; border-radius: 6px; cursor: pointer; }
         button:hover { background: #0284c7; color: white; }
@@ -23,9 +26,15 @@
 <body>
     <h1>8-Puzzle Solver Visualizer</h1>
     <div class="live-status">
-        <div class="dot"></div> Live Sync Active (Auto-updates when you run the C++ solver)
+        <div class="dot"></div> Live Sync Active
+    </div>
+
+    <!-- Dropdown to select which algorithm to play (Populated by JavaScript) -->
+    <div class="algo-selector-container" id="selector-container">
+        <select id="algo-select" onchange="changeAlgorithm()"></select>
     </div>
     
+    <!-- Metrics Display -->
     <div class="metrics-card">
         <div class="metric"><div>Algorithm</div><div class="metric-val" id="m-algo">-</div></div>
         <div class="metric"><div>Path Cost</div><div class="metric-val" id="m-cost">-</div></div>
@@ -33,8 +42,10 @@
         <div class="metric"><div>Time</div><div class="metric-val" id="m-time">-</div></div>
     </div>
 
+    <!-- The physical game board -->
     <div class="grid" id="puzzle-grid"></div>
 
+    <!-- Animation playback controls -->
     <div class="controls">
         <button onclick="prevStep()">Previous</button>
         <button onclick="togglePlay()" id="play-btn">Play</button>
@@ -42,12 +53,15 @@
     </div>
 
     <script>
-        let solution = null;
-        let currentStep = 0;
-        let timer = null;
-        let lastSolutionStr = "";
+        // --- State Management Variables ---
+        let solutionsList = [];        // Holds the array of all algorithm results from JSON
+        let activeSolutionIndex = 0;   // Which algorithm is currently selected in the dropdown
+        let solution = null;           // The specific data object for the currently active algorithm
+        let currentStep = 0;           // Tracks the current frame of the animation
+        let timer = null;              // Holds the setInterval ID for the auto-play function
+        let lastSolutionStr = "";      // Used to detect if the C++ engine has updated the JSON file
 
-        // Function to format the algorithm name nicely
+        // Cleans up the raw algorithm names from C++ for a good UI display.
         function formatAlgoName(rawName) {
             if (rawName === "astar_manhattan") return "A* (Manhattan)";
             if (rawName === "astar_euclidean") return "A* (Euclidean)";
@@ -57,47 +71,98 @@
             return rawName;
         }
 
-        // Function to fetch the JSON with cache-busting
+        // Triggered when the user picks a different algorithm from the dropdown menu.
+        function changeAlgorithm() {
+            const select = document.getElementById('algo-select');
+            activeSolutionIndex = parseInt(select.value);
+            solution = solutionsList[activeSolutionIndex]; // Switch to the new algorithm's data
+            
+            currentStep = 0; // Reset animation to the starting board
+            if (timer) togglePlay(); // If it was playing, pause it so the user can look at the start state
+            initMetricsAndGrid();    // Update the UI text and board graphics
+        }
+
+        // Reads the array of algorithms from JSON and creates the HTML <option> tags for the dropdown.
+        function populateDropdown() {
+            const container = document.getElementById('selector-container');
+            const select = document.getElementById('algo-select');
+            select.innerHTML = ''; // Clear old options
+
+            // If the C++ engine ran the 'all' command, we will have multiple solutions to show
+            if (solutionsList.length > 1) {
+                container.style.display = 'block'; // Make the dropdown visible
+                solutionsList.forEach((sol, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.text = formatAlgoName(sol.algorithm) + ` (Cost: ${sol.path_cost})`;
+                    select.appendChild(opt);
+                });
+                select.value = activeSolutionIndex;
+            } else {
+                // If C++ only ran a single algorithm (e.g., 'bfs'), hide the dropdown entirely
+                container.style.display = 'none'; 
+            }
+        }
+
+        // Core Sync Function: Fetches the solution.json file from the local Python server.
         function fetchSolution() {
+            // CACHE BUSTING: We append '?t=TIMESTAMP' to trick the browser into thinking it's 
+            // a brand new file every time, forcing it to download the latest C++ output instead of using memory.
             fetch('solution.json?t=' + new Date().getTime())
                 .then(res => res.json())
                 .then(data => { 
                     const newDataStr = JSON.stringify(data);
+                    
+                    // Only update the UI if the C++ engine actually generated a NEW file
                     if (newDataStr !== lastSolutionStr) {
-                        solution = data;
+                        solutionsList = data; // Load the new JSON array
                         lastSolutionStr = newDataStr;
+                        
+                        // Default to showing the first algorithm in the list
+                        activeSolutionIndex = 0; 
+                        solution = solutionsList[0];
                         currentStep = 0; 
                         if (timer) togglePlay(); 
-                        init(); 
+                        
+                        populateDropdown();
+                        initMetricsAndGrid(); 
                     }
                 })
                 .catch(() => console.log('Waiting for solution.json...'));
         }
 
-        fetchSolution();
-        setInterval(fetchSolution, 1000);
+        // --- Initialization & Polling ---
+        fetchSolution(); // Grab the file immediately on page load
+        setInterval(fetchSolution, 1000); // Check for a new file every 1 second (Live Sync)
 
-        function init() {
-            // Apply the formatting function here
+        
+        // Updates the text inside the metric boxes (Cost, Nodes, Time) with the active solution's data.
+        function initMetricsAndGrid() {
             document.getElementById('m-algo').innerText = formatAlgoName(solution.algorithm);
             document.getElementById('m-cost').innerText = solution.path_cost;
             document.getElementById('m-nodes').innerText = solution.nodes_expanded;
             document.getElementById('m-time').innerText = solution.running_time_ms.toFixed(2) + ' ms';
-            renderState(solution.path[0]);
+            renderState(solution.path[0]); // Draw the starting board
         }
 
+        // Parses a 9-character string (e.g., "125340678") and generates 9 HTML DIVs to draw the board.
         function renderState(state) {
             const grid = document.getElementById('puzzle-grid');
-            grid.innerHTML = '';
+            grid.innerHTML = ''; // Wipe the old tiles
+            
             for (let char of state) {
                 const div = document.createElement('div');
+                // If the char is '0', add the 'empty' CSS class to make it transparent
                 div.className = 'tile' + (char === '0' ? ' empty' : '');
                 div.innerText = char === '0' ? '' : char;
-                grid.appendChild(div);
+                grid.appendChild(div); // Add the tile to the CSS Grid
             }
         }
 
+        // --- Playback Controls ---
+
         function nextStep() {
+            // Prevent going out of bounds past the goal state
             if (solution && currentStep < solution.path.length - 1) {
                 currentStep++;
                 renderState(solution.path[currentStep]);
@@ -105,21 +170,33 @@
         }
 
         function prevStep() {
+            // Prevent going out of bounds past the initial state
             if (solution && currentStep > 0) {
                 currentStep--;
                 renderState(solution.path[currentStep]);
             }
         }
 
+        // Handles the Play/Pause logic for the animation.
         function togglePlay() {
             const btn = document.getElementById('play-btn');
+            
             if (timer) {
-                clearInterval(timer); timer = null; btn.innerText = 'Play';
+                // If timer exists, we are currently playing. Pause it.
+                clearInterval(timer); 
+                timer = null; 
+                btn.innerText = 'Play';
             } else {
+                // If timer is null, we are paused. Start playing.
                 btn.innerText = 'Pause';
+                
+                // Advance the frame every 400 milliseconds (0.4 seconds)
                 timer = setInterval(() => {
-                    if (currentStep < solution.path.length - 1) nextStep();
-                    else togglePlay();
+                    if (currentStep < solution.path.length - 1) {
+                        nextStep();
+                    } else {
+                        togglePlay(); // Auto-pause when we reach the goal
+                    }
                 }, 400);
             }
         }
