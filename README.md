@@ -1,4 +1,4 @@
-# 8-Puzzle AI Solver 
+# 8-Puzzle AI Solver 🧩
 
 [![C++17](https://img.shields.io/badge/C++-17-blue.svg)](https://isocpp.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -38,15 +38,16 @@ mkdir build
 cd build
 cmake ..
 make
+cd ..
 ```
 
 ## Usage
 
-Run the solver from the terminal, providing an initial state (9 characters) and the desired algorithm.
+Run the solver from the root project directory, providing an initial state (9 characters) and the desired algorithm.
 
 **Syntax:**
 ```bash
-./solver <initial_state> <algorithm>
+./build/solver <initial_state> <algorithm>
 ```
 
 **Available Algorithms:**
@@ -54,12 +55,12 @@ Run the solver from the terminal, providing an initial state (9 characters) and 
 
 **Example:**
 ```bash
-./solver 125340678 astar_manhattan
+./build/solver 125340678 astar_manhattan
 ```
 
 ## Running the Web Visualizer
 To see the step-by-step animation of the solution:
-1. Run the solver so it generates `output/solution.json`.
+1. Run the solver from the root directory so it generates `output/solution.json`.
 2. Start a local server in the project root:
    ```bash
    python3 -m http.server 8000
@@ -67,6 +68,6 @@ To see the step-by-step animation of the solution:
 3. Open your browser and navigate to: `http://localhost:8000/output/visualizer.html`
 
 ## 👥 Group Members
-1. **[Hamza Abdel Aziz Hamza]** - [9290]
-2. **[Karim Mohamed Khaled]** - [9004]
-3. **[Ezz Eldeen Mohamed Fathy]** - [9114]
+1. **Hamza Abdel Aziz Hamza** - **9290**
+2. **Karim Mohamed Khaled** - **9004**
+3. **Ezz Eldeen Mohamed Fathy** - **9114**
