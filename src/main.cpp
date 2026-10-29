@@ -39,10 +39,9 @@ void export_json(const SearchResult& res, const std::string& algo_name, const st
     out << "  ]\n";
     out << "}\n";
     out.close();
-    std::cout << "Exported solution to " << filepath << std::endl;
 }
 
-void print_terminal_trace(const SearchResult& res, const std::string& algo_name) {
+void print_terminal_trace(const SearchResult& res, const std::string& algo_name, bool print_steps) {
     std::cout << "\n==========================================" << std::endl;
     std::cout << "  ALGORITHM: " << algo_name << std::endl;
     std::cout << "==========================================" << std::endl;
@@ -52,13 +51,15 @@ void print_terminal_trace(const SearchResult& res, const std::string& algo_name)
         return;
     }
 
-    std::cout << "\n--- Path Trace ---" << std::endl;
-    for (size_t step = 0; step < res.path.size(); ++step) {
-        const auto& s = res.path[step];
-        std::cout << "Step " << step << ":\n";
-        std::cout << " " << s[0] << " " << s[1] << " " << s[2] << "\n";
-        std::cout << " " << s[3] << " " << s[4] << " " << s[5] << "\n";
-        std::cout << " " << s[6] << " " << s[7] << " " << s[8] << "\n\n";
+    if (print_steps) {
+        std::cout << "\n--- Path Trace ---" << std::endl;
+        for (size_t step = 0; step < res.path.size(); ++step) {
+            const auto& s = res.path[step];
+            std::cout << "Step " << step << ":\n";
+            std::cout << " " << s[0] << " " << s[1] << " " << s[2] << "\n";
+            std::cout << " " << s[3] << " " << s[4] << " " << s[5] << "\n";
+            std::cout << " " << s[6] << " " << s[7] << " " << s[8] << "\n\n";
+        }
     }
 
     std::cout << "--- Performance Metrics ---" << std::endl;
@@ -82,15 +83,44 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SearchResult res;
-    if (algo == "bfs") res = SearchEngine::run_bfs(initial_state);
-    else if (algo == "dfs") res = SearchEngine::run_dfs(initial_state);
-    else if (algo == "ids") res = SearchEngine::run_ids(initial_state);
-    else if (algo == "astar_euclidean") res = SearchEngine::run_astar(initial_state, false);
-    else res = SearchEngine::run_astar(initial_state, true); // default
+    if (algo == "all") {
+        std::cout << "\nExecuting Benchmark for All Algorithms...\n";
+        
+        // Pass 'false' to print_terminal_trace to hide steps during 'all' mode, keeping the terminal clean for the report metrics
+        SearchResult r_bfs = SearchEngine::run_bfs(initial_state);
+        print_terminal_trace(r_bfs, "BFS", false);
 
-    print_terminal_trace(res, algo);
-    export_json(res, algo, "output/solution.json");
+        SearchResult r_dfs = SearchEngine::run_dfs(initial_state);
+        print_terminal_trace(r_dfs, "DFS", false);
+
+        SearchResult r_ids = SearchEngine::run_ids(initial_state);
+        print_terminal_trace(r_ids, "IDS", false);
+
+        SearchResult r_astarm = SearchEngine::run_astar(initial_state, true);
+        print_terminal_trace(r_astarm, "A* (Manhattan)", false);
+
+        SearchResult r_astare = SearchEngine::run_astar(initial_state, false);
+        print_terminal_trace(r_astare, "A* (Euclidean)", false);
+
+        // Export A* Manhattan to JSON by default so the visualizer doesn't break
+        export_json(r_astarm, "A* (Manhattan)", "output/solution.json");
+        std::cout << "\nExported A* (Manhattan) solution to output/solution.json\n";
+    } 
+    else {
+        SearchResult res;
+        if (algo == "bfs") res = SearchEngine::run_bfs(initial_state);
+        else if (algo == "dfs") res = SearchEngine::run_dfs(initial_state);
+        else if (algo == "ids") res = SearchEngine::run_ids(initial_state);
+        else if (algo == "astar_euclidean") res = SearchEngine::run_astar(initial_state, false);
+        else {
+            res = SearchEngine::run_astar(initial_state, true);
+            algo = "astar_manhattan";
+        }
+
+        print_terminal_trace(res, algo, true); // true = print the board steps
+        export_json(res, algo, "output/solution.json");
+        std::cout << "Exported solution to output/solution.json\n";
+    }
 
     return 0;
 }

@@ -6,9 +6,12 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
         h1 { margin-bottom: 0.5rem; color: #38bdf8; }
+        .live-status { font-size: 0.9rem; color: #10b981; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+        .dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .metrics-card { display: flex; gap: 1.5rem; background: #1e293b; padding: 1rem 2rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #334155; }
         .metric { text-align: center; }
-        .metric-val { font-size: 1.25rem; font-weight: bold; color: #38bdf8; }
+        .metric-val { font-size: 1.25rem; font-weight: bold; color: #38bdf8; text-transform: capitalize; }
         .grid { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 8px; background: #334155; padding: 8px; border-radius: 12px; }
         .tile { display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; background: #2563eb; color: white; border-radius: 8px; transition: all 0.2s ease-in-out; }
         .tile.empty { background: transparent; }
@@ -19,6 +22,10 @@
 </head>
 <body>
     <h1>8-Puzzle Solver Visualizer</h1>
+    <div class="live-status">
+        <div class="dot"></div> Live Sync Active (Auto-updates when you run the C++ solver)
+    </div>
+    
     <div class="metrics-card">
         <div class="metric"><div>Algorithm</div><div class="metric-val" id="m-algo">-</div></div>
         <div class="metric"><div>Path Cost</div><div class="metric-val" id="m-cost">-</div></div>
@@ -38,14 +45,41 @@
         let solution = null;
         let currentStep = 0;
         let timer = null;
+        let lastSolutionStr = "";
 
-        fetch('solution.json')
-            .then(res => res.json())
-            .then(data => { solution = data; init(); })
-            .catch(() => alert('Load output/solution.json via a local server or browser live server.'));
+        // Function to format the algorithm name nicely
+        function formatAlgoName(rawName) {
+            if (rawName === "astar_manhattan") return "A* (Manhattan)";
+            if (rawName === "astar_euclidean") return "A* (Euclidean)";
+            if (rawName === "bfs") return "BFS";
+            if (rawName === "dfs") return "DFS";
+            if (rawName === "ids") return "IDS";
+            return rawName;
+        }
+
+        // Function to fetch the JSON with cache-busting
+        function fetchSolution() {
+            fetch('solution.json?t=' + new Date().getTime())
+                .then(res => res.json())
+                .then(data => { 
+                    const newDataStr = JSON.stringify(data);
+                    if (newDataStr !== lastSolutionStr) {
+                        solution = data;
+                        lastSolutionStr = newDataStr;
+                        currentStep = 0; 
+                        if (timer) togglePlay(); 
+                        init(); 
+                    }
+                })
+                .catch(() => console.log('Waiting for solution.json...'));
+        }
+
+        fetchSolution();
+        setInterval(fetchSolution, 1000);
 
         function init() {
-            document.getElementById('m-algo').innerText = solution.algorithm;
+            // Apply the formatting function here
+            document.getElementById('m-algo').innerText = formatAlgoName(solution.algorithm);
             document.getElementById('m-cost').innerText = solution.path_cost;
             document.getElementById('m-nodes').innerText = solution.nodes_expanded;
             document.getElementById('m-time').innerText = solution.running_time_ms.toFixed(2) + ' ms';
